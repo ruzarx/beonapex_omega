@@ -1,0 +1,60 @@
+networks:
+  racing_net:
+    driver: bridge
+
+services:
+  # scrapper:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile_scrapper
+  #   volumes:
+  #     - /:/home/jovyan/
+  #   restart: no
+  #   depends_on:
+  #     - postgres
+  #   networks:
+  #     - racing_net
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile_backend
+    volumes:
+      - ./nascar_backend:/code/nascar_backend
+    ports:
+      - "8080:5001"
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
+    networks:
+      - racing_net
+
+  flutter_web:
+    build:
+      context: .
+      dockerfile: Dockerfile_flutter_web
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - racing_net
+
+  # postgres:
+  #   image: postgres:latest
+  #   environment:
+  #     POSTGRES_DB: racing_db
+  #     POSTGRES_USER: postgres
+  #     POSTGRES_PASSWORD: postgres
+  #   ports:
+  #     - "5432:5432"
+  #   volumes:
+  #     - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+
+    # networks:
+    #   - racing_net
+    # healthcheck:
+    #   test: ["CMD-SHELL", "pg_isready -U postgres"]
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5

@@ -1,0 +1,42 @@
+{
+    "Superspeedways": 
+    [
+        "Atlanta Motor Speedway",
+        "Daytona International Speedway",
+        "Talladega Superspeedway"
+    ],
+    "Road Courses": [
+        "Charlotte Motor Speedway Road Course",
+        "Circuit of the Americas",
+        "Chicago Street Course",
+        "Sonoma Raceway",
+        "Watkins Glen International"
+    ],
+    "Super Short Tracks": [
+        "Bristol Motor Speedway",
+        "Martinsville Speedway"
+    ],
+    "Cookie Cutter Tracks": [
+        "Charlotte Motor Speedway",
+        "Kansas Speedway",
+        "Las Vegas Motor Speedway",
+        "Texas Motor Speedway",
+        "Homestead-Miami Speedway",
+        "Dover Motor Speedway",
+        "Darlington Raceway",
+        "Nashville Superspeedway"
+    ],
+    "Short Oval Tracks": [
+        "Richmond Raceway",
+        "Phoenix Raceway",
+        "Iowa Speedway",
+        "North Wilkesboro Speedway",
+        "World Wide Technology Raceway at Gateway",
+        "New Hampshire Motor Speedway"
+    ],
+    "Speedway Tracks": [
+        "Indianapolis Motor Speedway",
+        "Pocono Raceway",
+        "Michigan International Speedway"
+    ]
+}

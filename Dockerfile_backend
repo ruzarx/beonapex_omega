@@ -1,0 +1,28 @@
+# Use official Python image
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /code/nascar_backend
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y curl
+
+# Install Poetry
+RUN curl -sSL https://install.python-poetry.org | python3 -
+ENV PATH="/root/.local/bin:$PATH"
+
+# Copy dependency files first for better caching
+COPY ./src/backend/poetry.lock ./src/backend/pyproject.toml /code/src/backend/
+
+# Configure and install dependencies
+RUN poetry config virtualenvs.create false
+RUN poetry install --no-interaction --no-ansi --no-root
+
+# Copy remaining backend files
+COPY ./src/backend /code/src/backend
+
+# Expose port (modify if needed)
+EXPOSE 5001
+
+# Command to run the backend
+CMD ["python", "app.py"]
