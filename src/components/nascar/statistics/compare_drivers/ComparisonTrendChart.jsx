@@ -48,6 +48,8 @@ const ComparisonTrendChart = ({ driverAData, driverBData, driverAName, driverBNa
   }, [plotType]);
 
   const chartData = useMemo(() => {
+    if (!driverAData || !driverBData) return [];
+
     const effectiveLength =
       seasonA === currentSeasonYear || seasonB === currentSeasonYear
         ? currentRaceNumber

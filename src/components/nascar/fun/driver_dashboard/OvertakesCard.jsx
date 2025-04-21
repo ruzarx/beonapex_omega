@@ -1,5 +1,5 @@
 // src/components/driver_dashboard/OvertakesCard.jsx
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   Box,
   Card,
@@ -14,66 +14,120 @@ import {
 } from "@mui/material";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
-import { loadJsonData, getSeasonData, getTrackData } from "../../utils/dataLoader";
-
-const nextRaceData = loadJsonData("next_race_data.json");
-const calendar = loadJsonData("calendar.json");
-const trackSimilarity = loadJsonData("track_similarity.json");
-
-const getStats = (races) => {
-  const passes = races.reduce((sum, r) => sum + (r.green_flag_passes || 0), 0);
-  const passed = races.reduce((sum, r) => sum + (r.green_flag_times_passed || 0), 0);
-  return { passes, passed, diff: passes - passed };
-};
+import { loadJsonData, getSeasonData, getTrackData } from "../../utils/dataLoaderAsync";
 
 const OvertakesCard = () => {
   const [scope, setScope] = useState("recent");
-  const favoriteDriver = "Ross Chastain";
-  const seasonYear = nextRaceData.next_race_season;
-  const currentRace = nextRaceData.next_race_number;
+  const [nextRaceData, setNextRaceData] = useState(null);
+  const [calendar, setCalendar] = useState(null);
+  const [trackSimilarity, setTrackSimilarity] = useState(null);
+  const [driverRaces, setDriverRaces] = useState([]);
+  const [filteredRaces, setFilteredRaces] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const driverRaces = getSeasonData("race", seasonYear, currentRace).filter(r => r.driver_name === favoriteDriver);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const [nextRace, calendarData, trackSim] = await Promise.all([
+          loadJsonData("next_race_data.json"),
+          loadJsonData("calendar.json"),
+          loadJsonData("track_similarity.json")
+        ]);
+        
+        setNextRaceData(nextRace);
+        setCalendar(calendarData);
+        setTrackSimilarity(trackSim);
 
-  const trackList = useMemo(() => {
-    const baseTrack = nextRaceData.next_race_track;
-    return trackSimilarity[baseTrack] || [];
+        const favoriteDriver = "Ross Chastain";
+        const seasonYear = nextRace.next_race_season;
+        const currentRace = nextRace.next_race_number;
+
+        const races = await getSeasonData("race", seasonYear, currentRace);
+        const filteredRaces = races.filter(r => r.driver_name === favoriteDriver);
+        setDriverRaces(filteredRaces);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
   }, []);
 
+  useEffect(() => {
+    const updateFilteredRaces = async () => {
+      if (!nextRaceData || !driverRaces.length) return;
+
+      try {
+        setIsLoading(true);
+        let filtered = [];
+
+        if (scope === "recent") {
+          const sorted = [...driverRaces].sort((a, b) => b.race_number - a.race_number);
+          filtered = sorted.slice(0, 5);
+        } else if (scope === "same_track") {
+          const trackRaces = await getTrackData(2022, nextRaceData.next_race_track, "exact");
+          filtered = trackRaces
+            .filter(r => r.driver_name === "Ross Chastain")
+            .sort((a, b) => new Date(b.race_date) - new Date(a.race_date))
+            .slice(0, 5);
+        } else if (scope === "track_type") {
+          const trackRaces = await getTrackData(2022, nextRaceData.next_race_track, "both");
+          filtered = trackRaces
+            .filter(r => r.driver_name === "Ross Chastain")
+            .sort((a, b) => new Date(b.race_date) - new Date(a.race_date))
+            .slice(0, 5);
+        }
+
+        setFilteredRaces(filtered);
+      } catch (error) {
+        console.error("Error filtering races:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    updateFilteredRaces();
+  }, [scope, nextRaceData, driverRaces]);
+
+  const getStats = (races) => {
+    const passes = races.reduce((sum, r) => sum + (r.green_flag_passes || 0), 0);
+    const passed = races.reduce((sum, r) => sum + (r.green_flag_times_passed || 0), 0);
+    return { passes, passed, diff: passes - passed };
+  };
+
+  const { passes, passed, diff } = getStats(filteredRaces);
+
   const calendarMap = useMemo(() => {
+    if (!calendar) return {};
     const map = {};
     calendar.forEach(r => {
-      if (r.season_year === seasonYear) {
-        map[`${seasonYear}-${r.race_number}`] = r;
+      if (r.season_year === nextRaceData?.next_race_season) {
+        map[`${nextRaceData.next_race_season}-${r.race_number}`] = r;
       }
     });
     return map;
-  }, [seasonYear]);
+  }, [calendar, nextRaceData]);
 
-  const filteredRaces = useMemo(() => {
-    if (scope === "recent") {
-      const sorted = [...driverRaces].sort((a, b) => b.race_number - a.race_number);
-      return sorted.slice(0, 5);
-    }
-  
-    if (scope === "same_track") {
-      return getTrackData(2022, nextRaceData.next_race_track, "exact")
-        .filter(r => r.driver_name === favoriteDriver)
-        .sort((a, b) => new Date(b.race_date) - new Date(a.race_date))
-        .slice(0, 5);
-    }
-  
-    if (scope === "track_type") {
-      return getTrackData(2022, nextRaceData.next_race_track, "both")
-        .filter(r => r.driver_name === favoriteDriver)
-        .sort((a, b) => new Date(b.race_date) - new Date(a.race_date))
-        .slice(0, 5);
-    }
-  
-    return [];
-  }, [scope, driverRaces, favoriteDriver, nextRaceData, trackList]);
-  
-
-  const { passes, passed, diff } = getStats(filteredRaces);
+  if (isLoading || !nextRaceData) {
+    return (
+      <Card
+        elevation={0}
+        sx={{
+          backdropFilter: "blur(10px)",
+          background: "linear-gradient(135deg, rgba(0,128,255,0.15), rgba(255,255,255,0.05))",
+          borderRadius: 4,
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 4px 30px rgba(0, 0, 0, 0.1)",
+          p: 3,
+        }}
+      >
+        <Typography>Loading...</Typography>
+      </Card>
+    );
+  }
 
   return (
     <motion.div

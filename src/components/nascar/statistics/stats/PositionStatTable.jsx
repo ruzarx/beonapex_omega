@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Table, TableBody, TableContainer, TableHead, TableRow, TableCell,
-  Box, Typography, IconButton, Collapse
+  Box, Typography, IconButton, Collapse, CircularProgress
 } from "@mui/material";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
@@ -11,14 +11,28 @@ import {
   compareAvgToPrevSeason,
   getEntities,
 } from "../../utils/statsCalculations";
-import { loadJsonData } from "../../utils/dataLoader";
-
-
-const calendar = loadJsonData("calendar.json");
-
+import { loadJsonData } from "../../utils/dataLoaderAsync";
 
 const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
+  const [calendar, setCalendar] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await loadJsonData("calendar.json");
+        setCalendar(data);
+      } catch (error) {
+        console.error("Error loading calendar:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
   const cellStyle = { px: 1, py: 0.5, fontSize: "0.85rem", textAlign: "center" };
   const headerCellStyle = {
     textAlign: "center",
@@ -34,6 +48,8 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
   };
 
   const entityRaces = useMemo(() => {
+    if (!calendar) return [];
+    
     const races = raceData.filter(r => 
       r[racerType === "driver" ? "driver_name" : 
          racerType === "team" ? "team_name" : "manufacturer"] === entity
@@ -97,7 +113,7 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
           pct_laps_led: ((race.laps_led / race.total_laps) * 100).toFixed(1)
         }));
     }
-  }, [raceData, entity, racerType]);
+  }, [raceData, entity, racerType, calendar]);
 
   const playoffLabelMap = {
     playoff_16: 'Round 16',
@@ -105,6 +121,14 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
     playoff_8:  'Round 8',
     playoff_4:  'Final'
   };
+
+  if (isLoading || !calendar) {
+    return (
+      <Box sx={{ margin: 1 }}>
+        <CircularProgress size={20} />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ margin: 1 }}>

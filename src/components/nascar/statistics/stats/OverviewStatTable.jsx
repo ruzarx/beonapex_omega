@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -9,7 +9,8 @@ import {
   Box,
   Typography,
   Collapse,
-  IconButton
+  IconButton,
+  Paper
 } from "@mui/material";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
@@ -19,13 +20,30 @@ import {
   getStagePointsPercentage,
   getEntities,
 } from "../../utils/statsCalculations";
-import { loadJsonData } from "../../utils/dataLoader";
-
-const calendar = loadJsonData("calendar.json");
-
+import { loadJsonData } from "../../utils/dataLoaderAsync";
 
 // Update the ExpandedRowContent component
-const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
+const ExpandedRowContent = ({ entity, statsLevel, raceData, themeMode }) => {
+  const [calendar, setCalendar] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await loadJsonData("calendar.json");
+        setCalendar(data);
+      } catch (error) {
+        console.error("Error loading calendar:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const isDark = themeMode["themeMode"] === "dark";
 
   const cellStyle = { px: 1, py: 0.5, fontSize: "0.85rem", textAlign: "center" };
   const headerCellStyle = {
@@ -49,12 +67,14 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
   };
 
   const entityRaces = useMemo(() => {
+    if (!calendar) return [];
+    
     const races = raceData.filter(r => 
-      r[racerType === "driver" ? "driver_name" : 
-         racerType === "team" ? "team_name" : "manufacturer"] === entity
+      r[statsLevel === "driver" ? "driver_name" : 
+         statsLevel === "team" ? "team_name" : "manufacturer"] === entity
     );
 
-    if (racerType === "driver") {
+    if (statsLevel === "driver") {
       return races
         .sort((a, b) => {
           if (a.season_year !== b.season_year) return b.season_year - a.season_year;
@@ -107,7 +127,15 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
             : "-"
         }));
     }
-  }, [raceData, entity, racerType]);
+  }, [raceData, entity, statsLevel, calendar]);
+
+  if (isLoading || !calendar) {
+    return (
+      <Box sx={{ margin: 1 }}>
+        <Typography>Loading...</Typography>
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ margin: 1 }}>
@@ -118,11 +146,11 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
         <TableHead>
           <TableRow>
             <TableCell sx={headerCellStyle}>Race</TableCell>
-            <TableCell sx={headerCellStyle}>{racerType === "driver" ? "Finish" : "Avg Finish"}</TableCell>
-            <TableCell sx={headerCellStyle}>{racerType === "driver" ? "Start" : "Avg Start"}</TableCell>
-            <TableCell sx={headerCellStyle}>{racerType === "driver" ? "Status" : "% Finished"}</TableCell>
-            <TableCell sx={headerCellStyle}>{racerType === "driver" ? "Stage Points" : "Total Stage Points"}</TableCell>
-            <TableCell sx={headerCellStyle}>{racerType === "driver" ? "Rating" : "Avg Rating"}</TableCell>
+            <TableCell sx={headerCellStyle}>{statsLevel === "driver" ? "Finish" : "Avg Finish"}</TableCell>
+            <TableCell sx={headerCellStyle}>{statsLevel === "driver" ? "Start" : "Avg Start"}</TableCell>
+            <TableCell sx={headerCellStyle}>{statsLevel === "driver" ? "Status" : "% Finished"}</TableCell>
+            <TableCell sx={headerCellStyle}>{statsLevel === "driver" ? "Stage Points" : "Total Stage Points"}</TableCell>
+            <TableCell sx={headerCellStyle}>{statsLevel === "driver" ? "Rating" : "Avg Rating"}</TableCell>
           </TableRow>
         </TableHead>
         <TableBody>
@@ -166,13 +194,13 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
                     </span>
                   )}
                 </TableCell>
-              <TableCell sx={cellStyle}>{racerType === "driver" ? race.race_pos : race.race_pos}</TableCell>
-              <TableCell sx={cellStyle}>{racerType === "driver" ? race.quali_pos : race.quali_pos}</TableCell>
-              <TableCell sx={cellStyle}>{racerType === "driver" ? race.status : `${race.finish_percentage}%`}</TableCell>
-              <TableCell sx={cellStyle}>{racerType === "driver" ? race.race_stage_points : race.race_stage_points}</TableCell>
-              <TableCell sx={cellStyle}>{race.driver_rating}</TableCell>
-            </TableRow>
-          );
+                <TableCell sx={cellStyle}>{statsLevel === "driver" ? race.race_pos : race.race_pos}</TableCell>
+                <TableCell sx={cellStyle}>{statsLevel === "driver" ? race.quali_pos : race.quali_pos}</TableCell>
+                <TableCell sx={cellStyle}>{statsLevel === "driver" ? race.status : `${race.finish_percentage}%`}</TableCell>
+                <TableCell sx={cellStyle}>{statsLevel === "driver" ? race.race_stage_points : race.race_stage_points}</TableCell>
+                <TableCell sx={cellStyle}>{race.driver_rating}</TableCell>
+              </TableRow>
+            );
           })}
         </TableBody>
       </Table>
@@ -181,12 +209,12 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
 };
 
 const OverviewStatTable = ({
-  racerType,
-  lastRaceData,
   raceData,
-  seasonYear,
-  isDark,
-  showAllYears,
+  prevSeasonData,
+  lastRaceData,
+  statsLevel,
+  themeMode,
+  onDriverClick
 }) => {
   const [sortKey, setSortKey] = useState("race_pos");
   const [sortDirection, setSortDirection] = useState("asc");
@@ -203,8 +231,8 @@ const OverviewStatTable = ({
 
   const rawEntities = getEntities(
     raceData, 
-    racerType, 
-    showAllYears ? null : seasonYear, 
+    statsLevel, 
+    null, 
     "driver_rating", 
     false
   );
@@ -212,11 +240,11 @@ const OverviewStatTable = ({
   const entities = useMemo(() => {
     const getValue = (entity) => {
       if (sortKey === "stage_points_pct") {
-        return getStagePointsPercentage(raceData, entity, racerType);
+        return getStagePointsPercentage(raceData, entity, statsLevel);
       } else if (sortKey === "finish_pct") {
-        return getPercentage(raceData, entity, "status", "finished", racerType);
+        return getPercentage(raceData, entity, "status", "finished", statsLevel);
       } else {
-        return getAvgValue(raceData, entity, sortKey, racerType);
+        return getAvgValue(raceData, entity, sortKey, statsLevel);
       }
     };
 
@@ -225,7 +253,7 @@ const OverviewStatTable = ({
       const valB = getValue(b);
       return sortDirection === "asc" ? valA - valB : valB - valA;
     });
-  }, [raceData, racerType, rawEntities, sortKey, sortDirection]);
+  }, [raceData, statsLevel, rawEntities, sortKey, sortDirection]);
 
   const applyZebraTint = (colorEven, colorOdd, index) =>
     index % 2 === 0 ? colorEven : colorOdd;
@@ -245,7 +273,9 @@ const OverviewStatTable = ({
   const years = [...new Set(raceData.map(r => r.season_year))].sort();
   const yearRange = years.length > 1 
     ? `${Math.min(...years)}-${Math.max(...years)}`
-    : seasonYear.toString();
+    : years[0]?.toString() || "";
+
+  const isDark = themeMode["themeMode"] === "dark";
 
   const cellStyle = { px: 1, py: 0.5, fontSize: "0.85rem", textAlign: "center" };
   const headerCellStyle = {
@@ -262,87 +292,130 @@ const OverviewStatTable = ({
   };
 
   return (
-    <TableContainer>
-      <Box mb={2}>
-        <Typography
-          variant="body2"
-          color="text.secondary"
-          sx={{ fontStyle: "italic", mt: 0.5 }}
-        >
-          Overview of driver and team statistics — based on results for {yearRange}.
-        </Typography>
-      </Box>
-      <Table stickyHeader size="small">
+    <TableContainer component={Paper}>
+      <Table size="small">
         <TableHead>
-          <TableRow sx={{ bgcolor: "primary.main" }}>
-            <TableCell sx={headerCellStyle}/>
-            {racerType === "driver" && (<TableCell sx={headerCellStyle}>Driver</TableCell>)}
-            {racerType === "driver" && (<TableCell sx={headerCellStyle}>#</TableCell>)}
-            {racerType !== "manufacturer" && (<TableCell sx={headerCellStyle}>Team</TableCell>)}
-            {racerType === "manufacturer" && (<TableCell sx={headerCellStyle}>Make</TableCell>)}
-            <TableCell onClick={() => handleSort("race_pos")} sx={{...headerCellStyle, cursor: "pointer"}}>Average Finish</TableCell>
-            <TableCell onClick={() => handleSort("quali_pos")} sx={{...headerCellStyle, cursor: "pointer"}}>Average Start</TableCell>
-            <TableCell onClick={() => handleSort("finish_pct")}sx={{...headerCellStyle, cursor: "pointer"}}>% Finished Races</TableCell>
-            <TableCell onClick={() => handleSort("stage_points_pct")} sx={{...headerCellStyle, cursor: "pointer"}}>% Stage Points</TableCell>
-            <TableCell onClick={() => handleSort("driver_rating")} sx={{...headerCellStyle, cursor: "pointer"}}>Avg Rating</TableCell>
+          <TableRow>
+            <TableCell sx={headerCellStyle} />
+            <TableCell sx={headerCellStyle} onClick={() => handleSort("name")}>
+              {statsLevel === "driver" ? "Driver" : statsLevel === "team" ? "Team" : "Manufacturer"}
+            </TableCell>
+            <TableCell sx={headerCellStyle} onClick={() => handleSort("race_pos")}>
+              Avg Finish
+            </TableCell>
+            <TableCell sx={headerCellStyle} onClick={() => handleSort("quali_pos")}>
+              Avg Start
+            </TableCell>
+            <TableCell sx={headerCellStyle} onClick={() => handleSort("finish_pct")}>
+              Finish %
+            </TableCell>
+            <TableCell sx={headerCellStyle} onClick={() => handleSort("stage_points_pct")}>
+              Stage Points %
+            </TableCell>
+            <TableCell sx={headerCellStyle} onClick={() => handleSort("driver_rating")}>
+              Rating
+            </TableCell>
           </TableRow>
         </TableHead>
-
         <TableBody>
-          {entities.map((entity, index) => (
-            <React.Fragment key={index}>
-              <TableRow
-                sx={{
-                  bgcolor: applyZebraTint(
-                    isDark ? "#1e1e1e" : "#fff",
-                    isDark ? "#2a2a2a" : "#f9f9f9",
-                    index
-                  ),
-                  '& > *': { borderBottom: 'unset' },
-                  cursor: 'pointer',
-                }}
-              >
-                <TableCell>
-                  <IconButton size="small" onClick={() => setExpandedRow(expandedRow === entity ? null : entity)}>
-                    {expandedRow === entity ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
-                  </IconButton>
-                </TableCell>
-                {racerType === "driver" && <TableCell sx={{...cellStyle, textAlign: 'left'}}>{entity}</TableCell>}
-                {racerType === "driver" && (<TableCell sx={cellStyle}>{(lastRaceData.length > 0 
-                      ? lastRaceData.find((r) => r.driver_name === entity)?.car_number
-                      : getLatestDriverInfo(entity)?.car_number
+          {entities.map((entity, index) => {
+            const latestInfo = statsLevel === "driver" ? getLatestDriverInfo(entity) : null;
+            const isExpanded = expandedRow === entity;
+
+            return (
+              <React.Fragment key={entity}>
+                <TableRow
+                  sx={{
+                    cursor: "pointer",
+                    bgcolor: applyZebraTint(
+                      isDark ? "#1e1e1e" : "#fff",
+                      isDark ? "#2a2a2a" : "#f9f9f9",
+                      index
+                    ),
+                  }}
+                  onClick={() => setExpandedRow(isExpanded ? null : entity)}
+                >
+                  <TableCell>
+                    <IconButton size="small">
+                      {isExpanded ? <KeyboardArrowUpIcon /> : <KeyboardArrowDownIcon />}
+                    </IconButton>
+                  </TableCell>
+                  <TableCell sx={cellStyle}>
+                    {statsLevel === "driver" && latestInfo ? (
+                      <Box
+                        sx={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 1,
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDriverClick(entity);
+                        }}
+                      >
+                        <span>{entity}</span>
+                        <span
+                          style={{
+                            fontSize: "0.75rem",
+                            color: isDark ? "#bbbbbb" : "#666666",
+                          }}
+                        >
+                          #{latestInfo.car_number}
+                        </span>
+                      </Box>
+                    ) : (
+                      entity
                     )}
                   </TableCell>
-                )}
-                {racerType === "driver" && (
-                  <TableCell sx={{...cellStyle, textAlign: 'left'}}>
-                    {(lastRaceData.length > 0 
-                      ? lastRaceData.find((r) => r.driver_name === entity)?.team_name
-                      : getLatestDriverInfo(entity)?.team_name
-                    )}
+                  <TableCell sx={cellStyle}>
+                    {(() => {
+                      const value = getAvgValue(raceData, entity, "race_pos", statsLevel);
+                      return typeof value === 'number' ? value.toFixed(1) : '-';
+                    })()}
                   </TableCell>
-                )}
-                {racerType !== "driver" && <TableCell sx={{...cellStyle, textAlign: 'left'}}>{entity}</TableCell>}
-                <TableCell sx={cellStyle}>{getAvgValue(raceData, entity, "race_pos", racerType)}</TableCell>
-                <TableCell sx={cellStyle}>{getAvgValue(raceData, entity, "quali_pos", racerType)}</TableCell>
-                <TableCell sx={cellStyle}>{getPercentage(raceData, entity, "status", "finished", racerType)}%</TableCell>
-                <TableCell sx={cellStyle}>{getStagePointsPercentage(raceData, entity, racerType)}%</TableCell>
-                <TableCell sx={cellStyle}>{getAvgValue(raceData, entity, "driver_rating", racerType)}</TableCell>
-              </TableRow>
-              <TableRow>
-                <TableCell style={{ paddingBottom: 0, paddingTop: 0 }} colSpan={9}>
-                  <Collapse in={expandedRow === entity} timeout="auto" unmountOnExit>
-                    <ExpandedRowContent
-                      entity={entity}
-                      racerType={racerType}
-                      raceData={raceData}
-                      isDark={isDark}
-                    />
-                  </Collapse>
-                </TableCell>
-              </TableRow>
-            </React.Fragment>
-          ))}
+                  <TableCell sx={cellStyle}>
+                    {(() => {
+                      const value = getAvgValue(raceData, entity, "quali_pos", statsLevel);
+                      return typeof value === 'number' ? value.toFixed(1) : '-';
+                    })()}
+                  </TableCell>
+                  <TableCell sx={cellStyle}>
+                    {(() => {
+                      const value = getPercentage(raceData, entity, "status", "finished", statsLevel);
+                      return typeof value === 'number' ? `${value.toFixed(1)}%` : '-';
+                    })()}
+                  </TableCell>
+                  <TableCell sx={cellStyle}>
+                    {(() => {
+                      const value = getStagePointsPercentage(raceData, entity, statsLevel);
+                      return typeof value === 'number' ? `${value.toFixed(1)}%` : '-';
+                    })()}
+                  </TableCell>
+                  <TableCell sx={cellStyle}>
+                    {(() => {
+                      const value = getAvgValue(raceData, entity, "driver_rating", statsLevel);
+                      return typeof value === 'number' ? value.toFixed(1) : '-';
+                    })()}
+                  </TableCell>
+                </TableRow>
+                <TableRow>
+                  <TableCell
+                    style={{ paddingBottom: 0, paddingTop: 0 }}
+                    colSpan={7}
+                  >
+                    <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                      <ExpandedRowContent
+                        entity={entity}
+                        statsLevel={statsLevel}
+                        raceData={raceData}
+                        themeMode={themeMode}
+                      />
+                    </Collapse>
+                  </TableCell>
+                </TableRow>
+              </React.Fragment>
+            );
+          })}
         </TableBody>
       </Table>
     </TableContainer>

@@ -1,9 +1,7 @@
-import React from "react";
-import { Box, Typography, Tooltip, Grid, Avatar, Stack } from "@mui/material";
+import React, { useState, useEffect } from "react";
+import { Box, Typography, Tooltip, Grid, Avatar, Stack, CircularProgress } from "@mui/material";
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
-import { loadJsonData } from "../../utils/dataLoader";
-
-const calendar = loadJsonData("calendar.json");
+import { loadJsonData } from "../../utils/dataLoaderAsync";
 
 const getTileColor = (delta) => {
   if (delta > 0) return "rgba(25, 118, 210, 0.15)"; // Blue tint
@@ -17,15 +15,15 @@ const getShadowColor = (delta) => {
   return "#9e9e9e";
 };
 
-const getRaceLabel = (raceNumber, seasonYear, sameSeason) => {
+const getRaceLabel = (raceNumber, seasonYear, sameSeason, calendar) => {
     if (!sameSeason) return `R${raceNumber}`;
-    const race = calendar.find(r => r.race_number === raceNumber && r.season_year === seasonYear);
+    const race = calendar?.find(r => r.race_number === raceNumber && r.season_year === seasonYear);
     return race?.short_name || `Race ${raceNumber}`;
   };
   
 
-const getPlayoffBorderColor = (raceNumber, seasonYear) => {
-  const race = calendar.find(r => r.race_number === raceNumber && r.season_year === seasonYear);
+const getPlayoffBorderColor = (raceNumber, seasonYear, calendar) => {
+  const race = calendar?.find(r => r.race_number === raceNumber && r.season_year === seasonYear);
   if (!race) return "transparent";
   if (race.stage === "playoff_16") return "#42a5f5"; // Round of 16 - blue
   if (race.stage === "playoff_12") return "#ffb74d"; // Round of 12 - orange
@@ -35,6 +33,43 @@ const getPlayoffBorderColor = (raceNumber, seasonYear) => {
 };
 
 const DuelTileGrid = ({ driverAData, driverBData, seasonA, seasonB }) => {
+  const [calendar, setCalendar] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await loadJsonData("calendar.json");
+        setCalendar(data);
+      } catch (error) {
+        console.error("Error loading calendar data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  if (isLoading || !calendar) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress size={24} />
+      </Box>
+    );
+  }
+
+  if (!driverAData || !driverBData || driverAData.length === 0 || driverBData.length === 0) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <Typography variant="body1" color="text.secondary">
+          No race data available for comparison
+        </Typography>
+      </Box>
+    );
+  }
+
   const driverAName = driverAData[0]?.driver_name || "Driver A";
   const driverBName = driverBData[0]?.driver_name || "Driver B";
 
@@ -88,7 +123,7 @@ const DuelTileGrid = ({ driverAData, driverBData, seasonA, seasonB }) => {
 
       <Grid container spacing={1} columns={6}>
         {raceResults.map((race) => {
-          const playoffColor = getPlayoffBorderColor(race.race_number, race.season_year);
+          const playoffColor = getPlayoffBorderColor(race.race_number, race.season_year, calendar);
           return (
             <Grid item xs={1} key={race.race_number}>
               <Tooltip
@@ -122,7 +157,7 @@ const DuelTileGrid = ({ driverAData, driverBData, seasonA, seasonB }) => {
                   }}
                 >
                   <Typography variant="caption" fontWeight="bold">
-                    {getRaceLabel(race.race_number, race.season_year, seasonA === seasonB)}
+                    {getRaceLabel(race.race_number, race.season_year, seasonA === seasonB, calendar)}
                   </Typography>
                   <Typography variant="caption">{driverAName}: {race.pointsA} pts (P{race.finishA})</Typography>
                   <Typography variant="caption">{driverBName}: {race.pointsB} pts (P{race.finishB})</Typography>

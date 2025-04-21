@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
-  Box, Tabs, Tab, ToggleButton, ToggleButtonGroup, Chip
+  Box, Tabs, Tab, ToggleButton, ToggleButtonGroup, Chip, CircularProgress
 } from "@mui/material";
 
-import { loadJsonData } from "../utils/dataLoader";
+import { loadJsonData } from "../utils/dataLoaderAsync";
 
 import RaceSelector from "./RaceSelector";
 import StandingsPage from "./standings/StandingsPage";
@@ -14,9 +14,6 @@ import DetailedStats from "./stats/DetailedStats";
 import DriverComparisonScreen from "./compare_drivers/DriverComparisonScreen";
 import TrackOverviewTable from "./tracks/TrackOverviewTable";
 
-const racesData = loadJsonData("calendar.json");
-const nextRaceData = loadJsonData("next_race_data.json");
-
 const drawerWidth = 240;
 const collapsedWidth = 64;
 
@@ -24,23 +21,47 @@ const StatisticsMainScreen = (themeMode) => {
   const [selectedTab, setSelectedTab] = useState("standings");
   const [seasonYear, setSeasonYear] = useState(2025);
   const [showAllYears, setShowAllYears] = useState(false);
+  const [racesData, setRacesData] = useState(null);
+  const [nextRaceData, setNextRaceData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const [calendarData, nextRaceData] = await Promise.all([
+          loadJsonData("calendar.json"),
+          loadJsonData("next_race_data.json")
+        ]);
+        setRacesData(calendarData);
+        setNextRaceData(nextRaceData);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const getLatestRaceNumber = (year) => {
+    if (!racesData) return 1;
     const today = new Date();
     const seasonRaces = racesData.filter((r) => (r.season_year === year && new Date(r.race_date) <= today));
     return Math.max(...seasonRaces.map((r) => r.race_number));
   };
   
-  const initialSeasonYear =
-  nextRaceData["next_race_number"] <= 36
-  ? nextRaceData["next_race_season"]
-  : nextRaceData["next_race_season"] - 1;
+  const initialSeasonYear = nextRaceData
+    ? nextRaceData["next_race_number"] <= 36
+      ? nextRaceData["next_race_season"]
+      : nextRaceData["next_race_season"] - 1
+    : 2025;
   const initialRaceNumber = getLatestRaceNumber(initialSeasonYear);
 
   const [currentRace, setCurrentRace] = useState(initialRaceNumber);
   const [raceSelectorOpen, setRaceSelectorOpen] = useState(false);
   const [driverDrawerOpen, setDriverDrawerOpen] = useState(false);
-
   const [selectedDriver, setSelectedDriver] = useState(null);
 
   const handleTabChange = (event, newValue) => {
@@ -61,7 +82,14 @@ const StatisticsMainScreen = (themeMode) => {
     setDriverDrawerOpen(false);
     setSelectedDriver(null);
   };
-  
+
+  if (isLoading || !racesData || !nextRaceData) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress size={24} />
+      </Box>
+    );
+  }
 
   const filteredRaces = racesData.filter(
     (race) => race.season_year === seasonYear
@@ -81,7 +109,6 @@ const StatisticsMainScreen = (themeMode) => {
   const raceChipLabel = currentRaceInfo
     ? `Race ${currentRaceInfo.race_number}: ${currentRaceInfo.race_name} (${formatDate(currentRaceInfo.race_date)})`
     : "Race Info";
-  
 
   return (
     <Box sx={{ display: "flex" }}>
@@ -116,68 +143,67 @@ const StatisticsMainScreen = (themeMode) => {
         </Tabs>
 
         <Box
-  sx={{
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    mb: 2,
-    flexWrap: "wrap",
-    gap: 2
-  }}
->
-  {selectedTab === "stats" ? (
-    <ToggleButtonGroup
-      color="primary"
-      value={showAllYears ? "all" : seasonYear}
-      exclusive
-      onChange={(e, newValue) => {
-        if (newValue !== null) {
-          if (newValue === "all") {
-            setShowAllYears(true);
-            setSeasonYear(null);
-          } else {
-            setShowAllYears(false);
-            setSeasonYear(parseInt(newValue));
-          }
-        }
-      }}
-    >
-      <ToggleButton value="all">All Years</ToggleButton>
-      <ToggleButton value={2022}>2022</ToggleButton>
-      <ToggleButton value={2023}>2023</ToggleButton>
-      <ToggleButton value={2024}>2024</ToggleButton>
-      <ToggleButton value={2025}>2025</ToggleButton>
-    </ToggleButtonGroup>
-      ) : (selectedTab !== "compare" && selectedTab !== "tracks") && (
-        <ToggleButtonGroup
-          color="primary"
-          value={seasonYear}
-          exclusive
-          onChange={(e, newSeason) => {
-            if (newSeason !== null) {
-              setSeasonYear(newSeason);
-              setCurrentRace(getLatestRaceNumber(newSeason));
-            }
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            mb: 2,
+            flexWrap: "wrap",
+            gap: 2
           }}
         >
-          <ToggleButton value={2022}>2022</ToggleButton>
-          <ToggleButton value={2023}>2023</ToggleButton>
-          <ToggleButton value={2024}>2024</ToggleButton>
-          <ToggleButton value={2025}>2025</ToggleButton>
-        </ToggleButtonGroup>
-      )}
+          {selectedTab === "stats" ? (
+            <ToggleButtonGroup
+              color="primary"
+              value={showAllYears ? "all" : seasonYear}
+              exclusive
+              onChange={(e, newValue) => {
+                if (newValue !== null) {
+                  if (newValue === "all") {
+                    setShowAllYears(true);
+                    setSeasonYear(null);
+                  } else {
+                    setShowAllYears(false);
+                    setSeasonYear(parseInt(newValue));
+                  }
+                }
+              }}
+            >
+              <ToggleButton value="all">All Years</ToggleButton>
+              <ToggleButton value={2022}>2022</ToggleButton>
+              <ToggleButton value={2023}>2023</ToggleButton>
+              <ToggleButton value={2024}>2024</ToggleButton>
+              <ToggleButton value={2025}>2025</ToggleButton>
+            </ToggleButtonGroup>
+          ) : (selectedTab !== "compare" && selectedTab !== "tracks") && (
+            <ToggleButtonGroup
+              color="primary"
+              value={seasonYear}
+              exclusive
+              onChange={(e, newSeason) => {
+                if (newSeason !== null) {
+                  setSeasonYear(newSeason);
+                  setCurrentRace(getLatestRaceNumber(newSeason));
+                }
+              }}
+            >
+              <ToggleButton value={2022}>2022</ToggleButton>
+              <ToggleButton value={2023}>2023</ToggleButton>
+              <ToggleButton value={2024}>2024</ToggleButton>
+              <ToggleButton value={2025}>2025</ToggleButton>
+            </ToggleButtonGroup>
+          )}
 
-      {(selectedTab === "standings" || selectedTab === "results") && (
-        <Chip
-          label={raceChipLabel}
-          color="info"
-          variant="outlined"
-          sx={{ fontWeight: "bold", fontSize: "0.9rem" }}
-          size="medium"
-        />
-      )}
-    </Box>
-
+          {(selectedTab === "standings" || selectedTab === "results") && (
+            <Chip
+              label={raceChipLabel}
+              color="info"
+              variant="outlined"
+              sx={{ fontWeight: "bold", fontSize: "0.9rem" }}
+              size="medium"
+            />
+          )}
+        </Box>
 
         <Box sx={{ mt: 3 }}>
           {selectedTab === "standings" && (
@@ -243,10 +269,9 @@ const StatisticsMainScreen = (themeMode) => {
           onClose={handleDrawerClose}
           seasonYear={seasonYear}
           currentRace={currentRace}
-          raceName={currentRaceInfo.race_name}
+          raceName={currentRaceInfo?.race_name}
         />
       )}
-
     </Box>
   );
 };

@@ -1,58 +1,78 @@
 import {
   Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Box, Typography, TableSortLabel
+  Box, Typography, TableSortLabel, CircularProgress
 } from "@mui/material";
-import React from "react";
-import { getSeasonData } from "../../utils/dataLoader";
-
+import React, { useState, useEffect } from "react";
+import { getSeasonData } from "../../utils/dataLoaderAsync";
 
 const RaceResults = ({ seasonYear, currentRace, themeMode, onDriverClick }) => {
   const isDark = themeMode["themeMode"] === "dark";
-  const [sortColumn, setSortColumn] = React.useState("race_pos");
-  const [sortDirection, setSortDirection] = React.useState("asc");
+  const [sortColumn, setSortColumn] = useState("race_pos");
+  const [sortDirection, setSortDirection] = useState("asc");
+  const [currentResults, setCurrentResults] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const columnMap = {
-      "Finish Pos": "race_pos",
-      "Driver": "driver_name",
-      "#": "car_number",
-      "Team": "team_name",
-      "Wins": "wins",
-      "Start Pos": "quali_pos",
-      "Stage 1 Pts": "stage_1_pts",
-      "Stage 2 Pts": "stage_2_pts",
-      "Quality Passes": "quality_passes",
-      "Status": "status",
-      "Avg Running Pos": "avg_pos",
-      "Rating": "driver_rating"
-    };
-    
-
-  const handleSort = (column) => {
-      if (sortColumn === column) {
-        setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
-      } else {
-        setSortColumn(column);
-        setSortDirection("asc");
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getSeasonData("race", seasonYear, currentRace);
+        setCurrentResults(data.filter(r => r.race_number === currentRace));
+      } catch (error) {
+        console.error("Error loading race results:", error);
+      } finally {
+        setIsLoading(false);
       }
     };
-    
-  const currentResults = getSeasonData("race", seasonYear, currentRace).filter(r => r.race_number === currentRace);
+
+    loadData();
+  }, [seasonYear, currentRace]);
+
+  const columnMap = {
+    "Finish Pos": "race_pos",
+    "Driver": "driver_name",
+    "#": "car_number",
+    "Team": "team_name",
+    "Wins": "wins",
+    "Start Pos": "quali_pos",
+    "Stage 1 Pts": "stage_1_pts",
+    "Stage 2 Pts": "stage_2_pts",
+    "Quality Passes": "quality_passes",
+    "Status": "status",
+    "Avg Running Pos": "avg_pos",
+    "Rating": "driver_rating"
+  };
+
+  const handleSort = (column) => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === "asc" ? "desc" : "asc"));
+    } else {
+      setSortColumn(column);
+      setSortDirection("asc");
+    }
+  };
 
   const sortedResults = [...currentResults].sort((a, b) => {
-      const aValue = a[sortColumn];
-      const bValue = b[sortColumn];
-    
-      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
-      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
-      return 0;
-    });
-    
+    const aValue = a[sortColumn];
+    const bValue = b[sortColumn];
+
+    if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+    if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+    return 0;
+  });
 
   const applyZebraTint = (colorEven, colorOdd, index) =>
     index % 2 === 0 ? colorEven : colorOdd;
 
   const cellStyle = { px: 1, py: 0.5, fontSize: "0.85rem", textAlign: "center" };
 
+  if (isLoading) {
+    return (
+      <Paper sx={{ borderRadius: 3, p: 3, boxShadow: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress size={24} />
+      </Paper>
+    );
+  }
 
   return (
     <Paper sx={{ borderRadius: 3, p: 3, boxShadow: 3 }}>
@@ -69,7 +89,7 @@ const RaceResults = ({ seasonYear, currentRace, themeMode, onDriverClick }) => {
                 "Stage 1 Pts", "Stage 2 Pts", "Quality Passes",
                 "Status", "Avg Running Pos", "Rating"
               ].map((label) => (
-              <TableCell key={label} sx={{  px: 1, py: 0.5, fontWeight: "bold", textAlign: "center" }}>
+                <TableCell key={label} sx={{ px: 1, py: 0.5, fontWeight: "bold", textAlign: "center" }}>
                   <TableSortLabel
                     active={sortColumn === columnMap[label]}
                     direction={sortColumn === columnMap[label] ? sortDirection : "asc"}
@@ -78,7 +98,6 @@ const RaceResults = ({ seasonYear, currentRace, themeMode, onDriverClick }) => {
                     {label}
                   </TableSortLabel>
                 </TableCell>
-                
               ))}
             </TableRow>
           </TableHead>
@@ -104,15 +123,15 @@ const RaceResults = ({ seasonYear, currentRace, themeMode, onDriverClick }) => {
                 <TableCell sx={cellStyle}>{result.car_number}</TableCell>
                 <TableCell sx={cellStyle}>
                   <Typography
-                      noWrap
-                      sx={{
-                          fontSize: "clamp(0.7rem, 1vw, 0.95rem)", // scale down based on width
-                          textOverflow: "ellipsis",
-                          overflow: "hidden",
-                          textAlign: "left",
-                      }}
-                      >
-                      {result.team_name}
+                    noWrap
+                    sx={{
+                      fontSize: "clamp(0.7rem, 1vw, 0.95rem)",
+                      textOverflow: "ellipsis",
+                      overflow: "hidden",
+                      textAlign: "left",
+                    }}
+                  >
+                    {result.team_name}
                   </Typography>
                 </TableCell>
                 <TableCell sx={cellStyle}>{result.quali_pos}</TableCell>
