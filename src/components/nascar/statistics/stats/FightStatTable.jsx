@@ -1,18 +1,32 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   Table, TableBody, TableContainer, TableHead, TableRow, TableCell,
-  Box, Typography, IconButton, Collapse 
+  Box, Typography, IconButton, Collapse, CircularProgress
 } from "@mui/material";
 import { getAvgValue, getEntities, compareAvgToAllDrivers } from "../../utils/statsCalculations";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import { loadJsonData } from "../../utils/dataLoader";
-
-
-const calendar = loadJsonData("calendar.json");
-
+import { loadJsonData } from "../../utils/dataLoaderAsync";
 
 const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
+  const [calendar, setCalendar] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await loadJsonData("calendar.json");
+        setCalendar(data);
+      } catch (error) {
+        console.error("Error loading calendar:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
 
   const cellStyle = { px: 1, py: 0.5, fontSize: "0.85rem", textAlign: "center" };
   const headerCellStyle = {
@@ -27,6 +41,14 @@ const ExpandedRowContent = ({ entity, racerType, raceData, isDark }) => {
     px: 1,
     py: 1
   };
+
+  if (isLoading || !calendar) {
+    return (
+      <Box sx={{ margin: 1 }}>
+        <CircularProgress size={20} />
+      </Box>
+    );
+  }
 
   const entityRaces = useMemo(() => {
     const races = raceData.filter(r => 

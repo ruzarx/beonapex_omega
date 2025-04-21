@@ -1,21 +1,59 @@
-import React, { useMemo } from "react";
-import { Card, Stack, Typography, Chip } from "@mui/material";
+import React, { useMemo, useState, useEffect } from "react";
+import { Card, Stack, Typography, Chip, CircularProgress } from "@mui/material";
 import { motion } from "framer-motion";
-import { loadJsonData, getSeasonData } from "../../utils/dataLoader";
-
-const nextRaceData = loadJsonData("next_race_data.json");
+import { loadJsonData, getSeasonData } from "../../utils/dataLoaderAsync";
 
 const QualiRaceStatsCard = () => {
+  const [nextRaceData, setNextRaceData] = useState(null);
+  const [lastRace, setLastRace] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const favoriteDriver = "Ross Chastain";
-  const seasonYear = nextRaceData.next_race_season;
-  const currentRace = nextRaceData.next_race_number;
 
-  const lastRace = useMemo(() => {
-    return getSeasonData('race', seasonYear, currentRace).find(r =>
-      r.driver_name === favoriteDriver &&
-      r.race_number === currentRace - 1
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const nextRace = await loadJsonData("next_race_data.json");
+        setNextRaceData(nextRace);
+        
+        const seasonYear = nextRace.next_race_season;
+        const currentRace = nextRace.next_race_number;
+        
+        const raceData = await getSeasonData('race', seasonYear, currentRace);
+        const lastRaceData = raceData.find(r =>
+          r.driver_name === favoriteDriver &&
+          r.race_number === currentRace - 1
+        );
+        setLastRace(lastRaceData);
+      } catch (error) {
+        console.error("Error loading race data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [favoriteDriver]);
+
+  if (isLoading) {
+    return (
+      <Card
+        elevation={0}
+        sx={{
+          p: 3,
+          borderRadius: 4,
+          background: "linear-gradient(135deg, rgba(0,255,200,0.08), rgba(255,255,255,0.02))",
+          border: "1px solid rgba(255,255,255,0.08)",
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '200px'
+        }}
+      >
+        <CircularProgress size={24} />
+      </Card>
     );
-  }, [favoriteDriver, seasonYear, currentRace]);
+  }
 
   if (!lastRace) return null;
 

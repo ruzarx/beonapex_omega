@@ -1,9 +1,9 @@
 import {
   Paper, Table, TableBody, TableContainer, TableHead, TableRow, TableCell,
-  TableSortLabel, Box, Typography, Tooltip
+  TableSortLabel, Box, Typography, Tooltip, CircularProgress
 } from "@mui/material";
-import React from "react";
-import { getSeasonData } from "../../utils/dataLoader";
+import React, { useState, useEffect } from "react";
+import { getSeasonData } from "../../utils/dataLoaderAsync";
 import { getStandings, getBestFinish } from "../../utils/standingsCalculations";
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import Filter1Icon from '@mui/icons-material/Filter1';
@@ -11,11 +11,35 @@ import Filter2Icon from '@mui/icons-material/Filter2';
 import Filter3Icon from '@mui/icons-material/Filter3';
 import MilitaryTechIcon from '@mui/icons-material/MilitaryTech';
 
-
 const SeasonStandings = ({ seasonYear, currentRace, themeMode, onDriverClick }) => {
+  const [standingsData, setStandingsData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const isDark = themeMode["themeMode"] === "dark";
 
-  const standingsData = getSeasonData("standings", seasonYear);
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await getSeasonData("standings", seasonYear);
+        setStandingsData(data);
+      } catch (error) {
+        console.error("Error loading standings data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [seasonYear]);
+
+  if (isLoading || !standingsData) {
+    return (
+      <Paper sx={{ borderRadius: 3, p: 3, boxShadow: 3, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress size={24} />
+      </Paper>
+    );
+  }
+
   const allDrivers = [...new Set(
     standingsData.filter(r => r.race_number <= currentRace).map(r => r.driver_name)
   )];

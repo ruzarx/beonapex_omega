@@ -1,5 +1,5 @@
 // New version: TeamStatsComparison.js
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -13,19 +13,37 @@ import {
 } from "@mui/material";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import { loadJsonData } from "../../utils/dataLoader";
+import { loadJsonData } from "../../utils/dataLoaderAsync";
 
-const currentEntryList = loadJsonData("entry_list.json");
-
-const TeamStatsComparison = ({ raceData, seasonYear, isDark }) => {
+const TeamStatsComparison = ({ raceData, prevSeasonData, lastRaceData, themeMode, onDriverClick }) => {
   const [expandedTeams, setExpandedTeams] = useState({});
+  const [entryList, setEntryList] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const entryList = currentEntryList[seasonYear];
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const data = await loadJsonData("entry_list.json");
+        setEntryList(data);
+      } catch (error) {
+        console.error("Error loading entry list:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const isDark = themeMode["themeMode"] === "dark";
 
   const groupedByTeam = useMemo(() => {
+    if (!entryList) return new Map();
+    
     const map = new Map();
     raceData
-      .filter(entry => entryList.includes(entry.driver_name))
+      .filter(entry => entryList[entry.season_year]?.includes(entry.driver_name))
       .forEach(entry => {
         if (!map.has(entry.team_name)) map.set(entry.team_name, []);
         map.get(entry.team_name).push(entry);
@@ -71,25 +89,42 @@ const TeamStatsComparison = ({ raceData, seasonYear, isDark }) => {
     px: 1,
     py: 1
   };
-  
+
+  if (isLoading || !entryList) {
+    return (
+      <Paper
+        elevation={0}
+        sx={{
+          backdropFilter: "blur(10px)",
+          background: "linear-gradient(135deg, rgba(0,128,255,0.15), rgba(255,255,255,0.05))",
+          borderRadius: 4,
+          border: "1px solid rgba(255, 255, 255, 0.1)",
+          boxShadow: "0 4px 30px rgba(0, 0, 0, 0.1)",
+          p: 3,
+        }}
+      >
+        <Typography>Loading...</Typography>
+      </Paper>
+    );
+  }
 
   return (
     <TableContainer component={Paper}>
       <Typography variant="h6" p={2}>
-  Driver Impact on Team Performance
-  <Typography
-    variant="body2"
-    component="div"
-    sx={{
-      mt: 0.5,
-      color: isDark ? '#aaaaaa' : '#666666',
-      fontStyle: 'italic',
-      fontSize: '0.8rem'
-    }}
-  >
-    View each team's average stats and how they would change if a specific driver were excluded.
-  </Typography>
-</Typography>
+        Driver Impact on Team Performance
+        <Typography
+          variant="body2"
+          component="div"
+          sx={{
+            mt: 0.5,
+            color: isDark ? '#aaaaaa' : '#666666',
+            fontStyle: 'italic',
+            fontSize: '0.8rem'
+          }}
+        >
+          View each team's average stats and how they would change if a specific driver were excluded.
+        </Typography>
+      </Typography>
 
       <Table size="small">
         <TableHead>

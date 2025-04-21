@@ -1,14 +1,11 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Table, TableHead, TableRow, TableCell, TableBody, TableContainer,
-  Collapse, IconButton, Box, Typography
+  Collapse, IconButton, Box, Typography, CircularProgress
 } from "@mui/material";
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
-import { loadJsonData } from "../../utils/dataLoader";
-
-const calendar = loadJsonData("calendar.json");
-const trackData = loadJsonData("track_data.json");
+import { loadJsonData } from "../../utils/dataLoaderAsync";
 
 const applyZebraTint = (colorEven, colorOdd, index) =>
   index % 2 === 0 ? colorEven : colorOdd;
@@ -18,41 +15,6 @@ const playoffLabelMap = {
   playoff_12: 'Round 12',
   playoff_8: 'Round 8',
   playoff_4: 'Final'
-};
-
-const getTrackStats = () => {
-  const grouped = {};
-
-  trackData.forEach(row => {
-    const { track_name } = row;
-    if (!grouped[track_name]) grouped[track_name] = [];
-    grouped[track_name].push(row);
-  });
-
-  return Object.entries(grouped).map(([track, races]) => {
-    const avg = (key) => races.reduce((a, b) => a + (b[key] || 0), 0) / races.length;
-
-    return {
-      track_name: track,
-      race_count: races.length,
-      stats: {
-        cautions_number: avg("cautions_number").toFixed(1),
-        green_flag_percent: (avg("green_flag_percent") * 100).toFixed(1) + "%",
-        average_green_flag_run_laps: avg("average_green_flag_run_laps").toFixed(1),
-        number_of_leaders: avg("number_of_leaders").toFixed(1),
-        average_leading_run_laps: avg("average_leading_run_laps").toFixed(1),
-        most_laps_led: avg("most_laps_led").toFixed(1),
-        most_laps_led_percent: (avg("most_laps_led_percent") * 100).toFixed(1) + "%",
-        green_flag_passes: avg("green_flag_passes").toFixed(1),
-        quality_passes: avg("quality_passes").toFixed(1),
-        total_laps: avg("total_laps").toFixed(1),
-        driver_rating: avg("driver_rating").toFixed(1),
-      },
-      recent_races: races
-        .sort((a, b) => b.season_year - a.season_year || b.race_number - a.race_number)
-        .slice(0, 10),
-    };
-  }).sort((a, b) => a.track_name.localeCompare(b.track_name));
 };
 
 const ExpandedTrackStats = ({ races, isDark }) => {
@@ -146,9 +108,75 @@ const ExpandedTrackStats = ({ races, isDark }) => {
 };
 
 const TrackOverviewTable = ({ themeMode }) => {
+  const [calendar, setCalendar] = useState(null);
+  const [trackData, setTrackData] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const isDark = themeMode["themeMode"] === "dark";
   const [expanded, setExpanded] = useState(null);
-  const trackStats = useMemo(() => getTrackStats(), []);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setIsLoading(true);
+        const [calendarData, trackData] = await Promise.all([
+          loadJsonData("calendar.json"),
+          loadJsonData("track_data.json")
+        ]);
+        setCalendar(calendarData);
+        setTrackData(trackData);
+      } catch (error) {
+        console.error("Error loading track data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const trackStats = useMemo(() => {
+    if (!trackData) return [];
+
+    const grouped = {};
+    trackData.forEach(row => {
+      const { track_name } = row;
+      if (!grouped[track_name]) grouped[track_name] = [];
+      grouped[track_name].push(row);
+    });
+
+    return Object.entries(grouped).map(([track, races]) => {
+      const avg = (key) => races.reduce((a, b) => a + (b[key] || 0), 0) / races.length;
+
+      return {
+        track_name: track,
+        race_count: races.length,
+        stats: {
+          cautions_number: avg("cautions_number").toFixed(1),
+          green_flag_percent: (avg("green_flag_percent") * 100).toFixed(1) + "%",
+          average_green_flag_run_laps: avg("average_green_flag_run_laps").toFixed(1),
+          number_of_leaders: avg("number_of_leaders").toFixed(1),
+          average_leading_run_laps: avg("average_leading_run_laps").toFixed(1),
+          most_laps_led: avg("most_laps_led").toFixed(1),
+          most_laps_led_percent: (avg("most_laps_led_percent") * 100).toFixed(1) + "%",
+          green_flag_passes: avg("green_flag_passes").toFixed(1),
+          quality_passes: avg("quality_passes").toFixed(1),
+          total_laps: avg("total_laps").toFixed(1),
+          driver_rating: avg("driver_rating").toFixed(1),
+        },
+        recent_races: races
+          .sort((a, b) => b.season_year - a.season_year || b.race_number - a.race_number)
+          .slice(0, 10),
+      };
+    }).sort((a, b) => a.track_name.localeCompare(b.track_name));
+  }, [trackData]);
+
+  if (isLoading || !calendar || !trackData) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+        <CircularProgress size={24} />
+      </Box>
+    );
+  }
 
   const cellStyle = { px: 1, py: 0.5, fontSize: "0.85rem", textAlign: "center" };
   const headerStyle = {

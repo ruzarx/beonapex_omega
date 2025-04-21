@@ -1,11 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Drawer,
   Box,
   Typography,
   IconButton,
   Divider,
-  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, CircularProgress
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import {
@@ -19,7 +19,7 @@ import {
   Legend
 } from "chart.js";
 import { Line } from "react-chartjs-2";
-import { getSeasonData } from "../../utils/dataLoader";
+import { getSeasonData } from "../../utils/dataLoaderAsync";
 import annotationPlugin from "chartjs-plugin-annotation";
 
 ChartJS.register(
@@ -34,10 +34,34 @@ ChartJS.register(
 );
 
 const StandingsDriverDrawer = ({ driver, open, onClose, seasonYear, currentRace }) => {
-  if (!driver) return null;
+  const [driverRaces, setDriverRaces] = useState([]);
+  const [driverStandings, setDriverStandings] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const driverRaces = getSeasonData("data", seasonYear, currentRace).filter(r => r.driver_name === driver);
-  const driverStandings = getSeasonData("standings", seasonYear, currentRace).filter(r => r.driver_name === driver);
+  useEffect(() => {
+    const loadData = async () => {
+      if (!driver || !open) return;
+
+      try {
+        setIsLoading(true);
+        const [races, standings] = await Promise.all([
+          getSeasonData("data", seasonYear, currentRace),
+          getSeasonData("standings", seasonYear, currentRace)
+        ]);
+
+        setDriverRaces(races.filter(r => r.driver_name === driver));
+        setDriverStandings(standings.filter(r => r.driver_name === driver));
+      } catch (error) {
+        console.error("Error loading driver data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadData();
+  }, [driver, open, seasonYear, currentRace]);
+
+  if (!driver) return null;
 
   const raceLabels = driverRaces.map(r => `R${r.race_number}`);
   const finishPositions = driverRaces.map(r => r.race_pos);
